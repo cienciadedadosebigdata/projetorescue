@@ -5,6 +5,9 @@ from conf_selenium import *
 from conf_duckdb import *
 
 import streamlit as st
+import openai
+import streamlit as st
+import openai
 
 # Título principal
 st.title('Projeto Rescue - Dados SALIC')
@@ -62,3 +65,45 @@ if executar:
         st.error('Erro ao executar a consulta.')
 
 # Nota: Pode-se adicionar funcionalidades visuais como progress bars, spinners e placeholders para melhorar a experiência do usuário.
+
+# Título da aplicação
+st.title('Análise de Dados com GPT-4')
+
+# Verifica se o estado da sessão 'csv_content' existe, se não, inicializa como None
+if 'csv_content' not in st.session_state:
+    st.session_state['csv_content'] = None
+
+# Cria botão para ler o conteudo do arquivo csv_final sem ser upload pois o arquivo já está salvo
+if st.button('Ler arquivo CSV'):
+    with open(csv_final, 'r') as file:
+        # Salva o conteúdo do CSV no estado da sessão
+        st.session_state['csv_content'] = file.read()
+
+# Se o conteúdo do CSV foi carregado, prepara o prompt para o GPT-4
+if st.session_state['csv_content'] is not None:
+    prompt = f"Com base no arquivo CSV:\n\n{st.session_state['csv_content']}\n\n Me dê 10 insights interessantes sobre esses dados."
+
+    # Exibição do prompt para conferência
+    st.write('Prompt para análise de dados:')
+    st.code(prompt)
+
+    # Exibindo a resposta
+    if st.button('Analisar com GPT-4'):
+        with st.spinner('Analisando dados...'):
+            try:
+                # Configurando a chave da API da OpenAI
+                api_key = os.getenv("OPENAI_API_KEY")
+                client = OpenAI(api_key=api_key)
+                # Criando uma conclusão de chat com GPT-4
+                chat_completion = client.chat.completions.create(
+                    messages=[
+                        {
+                            "role": "user",
+                            "content": prompt,
+                        }
+                    ],
+                    model="gpt-4",  
+                )
+                st.write(chat_completion.choices[0].message.content)
+            except Exception as e:
+                st.error(f"Erro ao analisar dados: {e}")

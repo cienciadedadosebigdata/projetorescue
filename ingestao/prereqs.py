@@ -8,8 +8,9 @@ from selenium.webdriver.chrome.options import Options
 import pandas as pd
 import time
 import glob
-import os
 import xlrd
 import shutil
 import streamlit as st
 import duckdb
+import os
+from openai import OpenAI
