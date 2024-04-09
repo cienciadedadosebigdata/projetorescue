@@ -1,4 +1,6 @@
+xlrd
 selenium
 pandas
 streamlit
 certifi
+chromedriver

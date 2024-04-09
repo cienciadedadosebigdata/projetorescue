@@ -10,4 +10,7 @@ processa_anos(1993, 1995)
 driver.quit()
 
 # Converter e mover os arquivos
-converte_xls_para_csv("arquivos_salic")
+converte_xls_para_csv(xls_dir, csv_dir)
+
+# Gera um csv único
+unico_csv(csv_dir, csv_final)
