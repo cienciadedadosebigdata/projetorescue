@@ -3,6 +3,7 @@
 ## Importa bibliotecas
 from prereqs import *
 from conf_selenium import *
+from conf_duckdb import *
 
 # Função para aguardar o download completo do arquivo
 def wait_for_download(download_dir):
@@ -13,6 +14,9 @@ def wait_for_download(download_dir):
 ## Processa os anos baixando o conteudo com Selenium
 def processa_anos(ano_inicio, ano_fim):
     for ano in range(ano_inicio, ano_fim+1):
+        # Verifica se o diretorio xls_dir existe, se não cria:
+        if not os.path.exists(xls_dir):
+            os.makedirs(xls_dir)
         # Verifica se o arquivo já existe para o ano atual
         if os.path.exists(os.path.join(download_dir, f'dados_salic_pj_{ano}.xls')):
             print(f"Arquivo para o ano {ano} já existe, pulando para o próximo ano.")
@@ -55,15 +59,31 @@ def processa_anos(ano_inicio, ano_fim):
             xls_button = wait.until(EC.element_to_be_clickable((By.NAME, 'sc_b_xls')))
             xls_button.click()
 
-            ## Agora clica no link fazendo o download do XLS
+            # Agora clica no link fazendo o download do XLS
             xls_link = wait.until(EC.element_to_be_clickable((By.XPATH, "//a[contains(@href, '/tmp/sc_xls_')]")))
             xls_link.click()
+
+            # Aguarda um tempo adicional para o download começar
+            time.sleep(5)
 
             # Aguarda o download ser concluído
             wait_for_download(download_dir)
 
             # Encontra o último arquivo baixado (o mais recente)
             list_of_files = glob.glob(f'{download_dir}/*.xls')  # Pode ajustar a extensão se necessário
+
+            # Verifica se pelo menos um arquivo foi baixado
+            while not list_of_files:
+                time.sleep(1)
+                list_of_files = glob.glob(f'{download_dir}/*.xls')
+
+            latest_file = max(list_of_files, key=os.path.getctime)
+
+            # Define o novo nome do arquivo
+            new_file_name = os.path.join(download_dir, f'dados_salic_pj_{ano}.xls')
+
+            # Renomeia o arquivo
+            os.rename(latest_file, new_file_name)
 
             # Se precisar interagir com a página principal novamente
             driver.switch_to.default_content()
@@ -74,6 +94,9 @@ def processa_anos(ano_inicio, ano_fim):
         except Exception as e:
             print(f"Ocorreu um erro no ano {ano}: {e}")
             continue  # Continua para o próximo ano no caso de erro
+
+    # Fecha o navegador
+    driver.quit()
 
 ## Converte os arquivos XLS para CSV
 def converte_xls_para_csv(xls_dir, csv_dir):
@@ -88,18 +111,6 @@ def converte_xls_para_csv(xls_dir, csv_dir):
         # Lê o arquivo .xls usando o pandas
         df = pd.read_excel(xls_path)
 
-        # Extrai o ano do nome do arquivo
-        ano = os.path.splitext(xls_file)[0].split('_')[-1]
-
-        # Verifica se o valor é 'conIncentivadorMecenatoPorRegiaoUF'
-        if df.iloc[0,0] == 'conIncentivadorMecenatoPorRegiaoUF':
-            # Se for, substitui pelo ano
-            df.iloc[0,0] = ano
-            print(ano)
-
-        # Adiciona a coluna 'ANO' ao DataFrame
-        df['ANO'] = ano
-
         # Remove a extensão .xls do nome do arquivo e adiciona .csv
         csv_file = os.path.splitext(xls_file)[0] + '.csv'
 
@@ -108,6 +119,10 @@ def converte_xls_para_csv(xls_dir, csv_dir):
         if not os.path.exists(csv_dir):
             os.makedirs(csv_dir)
         csv_path = os.path.join(csv_dir, csv_file)
+
+        # Adiciona a coluna 'ano' com o ano do arquivo
+        ano = int(xls_file.split('_')[-1].split('.')[0])
+        df['ano'] = ano
 
         # Salva o DataFrame como um arquivo .csv
         df.to_csv(csv_path, index=False, encoding='utf-8')
@@ -134,7 +149,7 @@ def unico_csv(csv_dir, csv_final):
         df = pd.read_csv(csv_path)
 
         # Altera todos os valores 'conIncentivadorMecenatoPorRegiaoUF' na coluna 'ano' para 1993
-        df['ANO'] = df['ANO'].replace('conIncentivadorMecenatoPorRegiaoUF', 1993)
+        #df['ANO'] = df['ANO'].replace('conIncentivadorMecenatoPorRegiaoUF', 1993)
 
         # Adiciona o DataFrame à lista
         dfs.append(df)
@@ -150,3 +165,37 @@ def unico_csv(csv_dir, csv_final):
     shutil.rmtree(csv_dir)
 
     print(f"Arquivo {csv_final} criado com sucesso.")
+
+
+## Função que cria tabela no DuckDB
+def cria_tabela_duckdb(csv_final, db_path):
+    # Verifica se o arquivo CSV existe
+    if not os.path.exists(csv_final):
+        print(f"Arquivo {csv_final} não encontrado.")
+        return
+
+    # Conecta ao banco de dados DuckDB
+    con = duckdb.connect(db_path)
+
+    # Exclui a tabela existente, se houver
+    con.execute("DROP TABLE IF EXISTS salic_data")
+
+    # Cria uma nova tabela no DuckDB a partir do arquivo .csv
+    con.execute(f"CREATE TABLE salic_data AS SELECT * FROM read_csv_auto('{csv_final}')")
+
+    print("Tabela criada no DuckDB com sucesso.")
+
+## Função que faz consultas no DuckDB
+def consulta_duckdb(consulta, db_path):
+    # Verifica se o banco de dados DuckDB existe
+    if not os.path.exists(db_path):
+        print(f"Banco de dados {db_path} não encontrado.")
+        return
+
+    # Conecta ao banco de dados DuckDB
+    con = duckdb.connect(db_path)
+
+    # Executa a consulta e retorna o resultado como um DataFrame do pandas
+    result = con.execute(consulta).fetch_df()
+
+    return result

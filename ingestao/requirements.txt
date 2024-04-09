@@ -4,3 +4,4 @@ pandas
 streamlit
 certifi
 chromedriver
+duckdb
