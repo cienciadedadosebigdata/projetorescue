@@ -4,11 +4,6 @@ from functions import *
 from conf_selenium import *
 from conf_duckdb import *
 
-import streamlit as st
-import openai
-import streamlit as st
-import openai
-
 # Título principal
 st.title('Projeto Rescue - Dados SALIC')
 
